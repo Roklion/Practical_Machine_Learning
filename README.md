@@ -5,4 +5,4 @@ __Note__: _report.html_ file created by knitr from _report.rmd_ was renamed to _
 
 URL for report HTML in gh-pages format is http://roklion.github.io/Practical_Machine_Learning/ 
 
-Report is also published on RPubs http://roklion.github.io/Practical_Machine_Learning/
+Report is also published on RPubs http://rpubs.com/Roklion/Exercise_Prediction
