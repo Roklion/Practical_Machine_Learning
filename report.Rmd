@@ -1,0 +1,132 @@
+---
+title: "Report on Exercise Manner Prediction"
+author: "Yao Dong Yu"
+date: "November 20, 2015"
+output: html_document
+---
+
+# Obtain Datasets
+The training data used for this study was downloaded from [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+The testing data was downloaded from [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv).
+
+Download data only once, then read data into R.
+```{r echo=TRUE}
+utrain <- 
+    "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+utest <-
+    "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+ftrain <- "pml-training.csv"
+ftest <- "pml-testing.csv"
+# Download is slow, so if the file already exists, skip download
+if(!file.exists(ftrain)){
+    setInternet2(use = TRUE)
+    download.file(utrain, destfile = ftrain)
+}
+if(!file.exists(ftest)){
+    setInternet2(use = TRUE)
+    download.file(utest, destfile = ftest)
+}
+
+acc_data <- read.csv(ftrain)
+```
+
+
+# Cross-Validation
+Training dataset was split again into training set and testing set for the 
+purpose of cross-validation.
+```{r echo=TRUE, warning=FALSE}
+library(caret)
+# For result reproduction
+set.seed(1018)
+
+# Split data into 3:1 for training:testing
+inTrain <- createDataPartition(y = acc_data$classe, p = 0.75, list = FALSE)
+training <- acc_data[inTrain, ]
+testing <- acc_data[-inTrain, ]
+```
+
+
+# Data Clean-up
+Before starting to construct model, we should note that 159 variables is a large
+number of predictors. Therefore, initial preprocessing is required to remove
+some unconcerned variables.
+
+First, remove the ones not representing accelerometer measurements, including
+index, user names, timestamps and windows.
+```{r echo=TRUE}
+# Create a list of column number to be removed
+colToRemove <- c(1:7)
+```
+
+Inspect whether there is any zero-variance variable that can be immediately
+removed from the set.
+```{r echo=TRUE}
+nzv <- nearZeroVar(training, saveMetrics = TRUE)
+# Look for zero-variance variable
+nzv[nzv[, "zeroVar"] == TRUE, ]
+```
+There is no zero-variance variable found in the training set.
+In addition, the near-zero-variance variables should not be removed at this
+stage, because some may correspond to only one particular outcome out of 5
+potential results which may possibly cause small overall variance.
+
+Look at the summry of training set to decide any variable that is unlikely to be
+included in the model.
+```{r echo=TRUE, results="hide"}
+summary(training[, -colToRemove])
+```
+There are many columns contain a large number of NA's or empty entries. They are
+less likely useful predictors.
+```{r echo=TRUE}
+# Any column with more than half of the values empty or NA should be excluded.
+colNA <- which(colSums(is.na(training)) > length(training)/2)
+colNone <- which(colSums(training == "") > length(training)/2)
+
+# Add these columns to our array of column numbers to be removed
+colToRemove <- unique(c(colToRemove, colNA, colNone))
+length(colToRemove)
+```
+
+By removing these 107 variables, we left with 52 variables to construct the 
+model for prediction _classe_.
+Apply the preprocessing to both training and testing set.
+```{r echo=TRUE}
+training <- training[, -colToRemove]
+testing <- testing[, -colToRemove]
+```
+
+
+# Train with Random Forest 
+Now with preprocessing down, a model can be constructed with the Random Forest
+method.
+```{r echo=TRUE, warning=FALSE}
+library(randomForest)
+```
+```{r echo=TRUE}
+modelFit <- randomForest(classe ~ ., data = training)
+```
+
+Predict and cross-validate _classe_ variable in the testing set. Estimate the 
+out-of-sample error with _confusionMatrix()_.
+```{r echo=TRUE}
+pred <- predict(modelFit, testing)
+CMatrix <- confusionMatrix(testing$classe, pred)
+CMatrix
+```
+By inspecting the cross-validation error, the out-of-sample error is
+approximately to be **99.69%**.
+
+
+# Predict with Testing Dataset
+Load testing dataset and apply the same preprocessing procedure to the dataset.
+```{r echo=TRUE}
+test_pts <- read.csv(ftest)
+test_pts <- test_pts[, -colToRemove]
+```
+
+Now apply the prediction model to the given testing dataset (20 test data).
+**Note**: These results will be applied to programming submission.
+```{r echo=TRUE}
+pred_result <- predict(modelFit, test_pts)
+pred_result
+```
